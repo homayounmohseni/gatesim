@@ -3,3 +3,4 @@ a.out: main.cpp
 
 clean:
 	rm -f a.out
+	rm -f compile_commands.json

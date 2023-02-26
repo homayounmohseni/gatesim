@@ -14,8 +14,8 @@ string get_file_string(const string&);
 class Wire {
 public:
 	Wire();
-private:
 	char value;
+private:
 	int activity_count;
 };
 
@@ -82,6 +82,13 @@ init_wires(const vector<vector<string>>& statements);
 vector<Gate*> init_gates(const vector<vector<string>>&, const map<string, Wire*>&);
 
 vector<string> extract_statement(const string &, string::iterator&, const vector<char>&, char);
+
+template<typename T> bool are_all(const vector<T>&, const T&);
+
+template<typename T> bool is_any(const vector<T>&, const T&);
+
+vector<char> wires_to_chars(vector<Wire*>&);
+
 
 void print(const vector<string>& v) {
 	cout << "{count: " << v.size() << "}\n";
@@ -221,6 +228,7 @@ vector<Gate*> init_gates(const vector<vector<string>>& statements, const map<str
 	return gates;
 }
 
+
 void add_wires_to_map(const vector<string>& words, map<string, Wire*>& m) {
 	for (int i = 1; i < words.size(); i++) {
 		const auto& word = words[i];
@@ -279,6 +287,31 @@ vector<string> extract_statement(const string &str, string::iterator &it, const 
 	return words;
 }
 
+char and_char(char a, char b) {
+	if (a == '1' && b == '1') {
+		return '1';
+	}
+	else if (a == '0' || b == '0') {
+		return '0';
+	}
+	return 'x';
+}
+
+template<typename T>
+bool are_all(const vector<T>& vec, const T& val) {
+	return all_of(vec.begin(), vec.end(), [&](T element) { return element == val; });
+}
+
+template<typename T>
+bool is_any(const vector<T>& vec, const T& val) {
+	return any_of(vec.begin(), vec.end(), [&](T element) { return element == val; });
+}
+
+vector<char> wires_to_chars(vector<Wire*>& wires) {
+	vector<char> chars(wires.size());
+	transform(wires.begin(), wires.end(), chars.begin(), [](Wire *wire) { return wire->value; });
+	return chars;
+}
 
 Wire::Wire() {}
 
@@ -294,16 +327,118 @@ void Gate::set_io(const vector<Wire*>& _inputs, Wire * const _output) {
 }
 
 Nand::Nand() {}
-void Nand::evaluate() {}
+
+void Nand::evaluate() {
+	auto inputs_char = wires_to_chars(inputs);
+	if (are_all(inputs_char, '1')) {
+		output->value = '0';
+	}
+	else if (is_any(inputs_char, '0')) {
+		output->value = '1';
+	}
+	else {
+		output->value = 'x';
+	}
+}
+
 And::And() {}
-void And::evaluate() {}
+
+void And::evaluate() {
+	auto inputs_char = wires_to_chars(inputs);
+	if (are_all(inputs_char, '1')) {
+		output->value = '1';
+	}
+	else if (is_any(inputs_char, '0')) {
+		output->value = '0';
+	}
+	else {
+		output->value = 'x';
+	}
+}
+
 Nor::Nor() {}
-void Nor::evaluate() {}
+
+void Nor::evaluate() {
+	auto inputs_char = wires_to_chars(inputs);
+	if (is_any(inputs_char, '1')) {
+		output->value = '0';
+	}
+	else if (are_all(inputs_char, '0')) {
+		output->value = '1';
+	}
+	else {
+		output->value = 'x';
+	}
+}
+
 Or::Or() {}
-void Or::evaluate() {}
+
+void Or::evaluate() {
+	auto inputs_char = wires_to_chars(inputs);
+	if (is_any(inputs_char, '1')) {
+		output->value = '1';
+	}
+	else if (are_all(inputs_char, '0')) {
+		output->value = '0';
+	}
+	else {
+		output->value = 'x';
+	}
+}
+
 Xnor::Xnor() {}
-void Xnor::evaluate() {}
+
+//TODO
+void Xnor::evaluate() {
+	int ones_cnt = 0;
+	for (const auto& input : inputs) {
+		if (input->value == '1') {
+			ones_cnt++;
+		}
+		else if (input->value != '0') {
+			output->value = 'x';
+			return;
+		}
+	}
+	if (ones_cnt % 2 == 0) {
+		output->value = '1';
+	}
+	else {
+		output->value = '0';
+	}
+}
+
 Xor::Xor() {}
-void Xor::evaluate() {}
+
+void Xor::evaluate() {
+	int ones_cnt = 0;
+	for (const auto& input : inputs) {
+		if (input->value == '1') {
+			ones_cnt++;
+		}
+		else if (input->value != '0') {
+			output->value = 'x';
+			return;
+		}
+	}
+	if (ones_cnt % 2 == 0) {
+		output->value = '0';
+	}
+	else {
+		output->value = '1';
+	}
+}
+
 Not::Not() {}
-void Not::evaluate() {}
+
+void Not::evaluate() {
+	if (inputs[0]->value == '0') {
+		output->value = '1';
+	}
+	else if (inputs[0]->value == '1') {
+		output->value = '0';
+	}
+	else {
+		output->value = 'x';
+	}
+}
