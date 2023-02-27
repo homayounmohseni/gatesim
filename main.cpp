@@ -13,8 +13,9 @@ string get_file_string(const string&);
 
 class Wire {
 public:
-	Wire();
+	Wire(const string&);
 	char value;
+	string get_name();
 private:
 	string name;
 	int activity_count;
@@ -75,21 +76,22 @@ public:
 };
 
 
-void cleanup(const map<string, Wire*>&, const vector<Gate*>&);
+void cleanup(const vector<Wire*>&, const vector<Gate*>&);
 
-void simulate_default_order(const map<string, Wire*>&, const map<string, Wire*>&, const map<string, Wire*>&, 
+void simulate_default_order(const vector<Wire*>&, const vector<Wire*>&, const vector<Wire*>&,
 		const vector<Gate*>&, const vector<vector<char>>&);
 
-void simulate_ordered(const map<string, Wire*>&, const map<string, Wire*>&, const map<string, Wire*>&,
-		const vector<Gate*>&, const vector<vector<char>>);
+void simulate_ordered(const vector<Wire*>&, const vector<Wire*>&, const vector<Wire*>&,
+		const vector<Gate*>&, const vector<vector<char>>&);
 
 
-void add_wires_to_map(const vector<string>& statement, map<string, Wire*>&);
 
-tuple<map<string, Wire*>, map<string, Wire*>, map<string, Wire*>>
+tuple<vector<Wire*>, vector<Wire*>, vector<Wire*>>
 init_wires(const vector<vector<string>>& statements);
 
-vector<Gate*> init_gates(const vector<vector<string>>&, const map<string, Wire*>&);
+vector<Gate*> init_gates(const vector<vector<string>>&, const vector<Wire*>&);
+
+void add_wires_to_vector(const vector<string>& statement, vector<Wire*>&);
 
 vector<string> extract_statement(const string &, string::iterator&, const vector<char>&, char);
 
@@ -145,24 +147,23 @@ int main(int argc, char **argv) {
 		}
 	}
 
-	auto [wires_map, inputs_map, outputs_map] = init_wires(statements);
-	vector<Gate*> gates = init_gates(statements, wires_map);
+	auto [wires, inputs, outputs] = init_wires(statements);
+	vector<Gate*> gates = init_gates(statements, wires);
 
-	//simulating gates with defaul random order in the file
-	vector<vector<char>> input_vector;
 	//TODO
 	//you've got to initialize input_vector here
-	simulate_default_order(wires_map, inputs_map, outputs_map, gates, input_vector);
-	//simulating gaetes with the correct order
-	simulate_ordered(wires_map, inputs_map, outputs_map, gates, input_vector);
+	vector<vector<char>> input_vectors;
+	simulate_default_order(wires, inputs, outputs, gates, input_vectors);
+	simulate_ordered(wires, inputs, outputs, gates, input_vectors);
 
 	// print(statements);
-	cleanup(wires_map, gates);
+	cleanup(wires, gates);
 	return 0;
 }
 
-void cleanup(const map<string, Wire*>& wires, const vector<Gate*>& gates) {
-	for (auto const& [key, wire] : wires) {
+
+void cleanup(const vector<Wire*>& wires, const vector<Gate*>& gates) {
+	for (const auto& wire : wires) {
 		delete wire;
 	}
 	for (auto const& gate : gates) {
@@ -170,10 +171,8 @@ void cleanup(const map<string, Wire*>& wires, const vector<Gate*>& gates) {
 	}
 }
 
-void simulate_default_order(
-		const map<string, Wire*>& wires, const map<string, Wire*>& inputs,
-		const map<string, Wire*>& outputs, const vector<Gate*>& gates,
-		const vector<vector<char>>& input_vectors) {
+void simulate_default_order(const vector<Wire*>& wires, const vector<Wire*>& inputs, const vector<Wire*>& outputs, 
+		const vector<Gate*>& gates, const vector<vector<char>>& input_vectors) {
 	for (const auto& input_vector : input_vectors) {
 		// set_inputs(inputs, input_vectors);
 		for (auto it = gates.begin(); it != gates.end(); it++) {
@@ -182,12 +181,9 @@ void simulate_default_order(
 	}
 }
 
-void simulate_ordered(
-		const map<string, Wire*>& wires, const map<string, Wire*>& inputs,
-		const map<string, Wire*>& outputs, const vector<Gate*>& gates,
-		const vector<vector<char>>& input_vectors) {
+void simulate_ordered (const vector<Wire*>& wires, const vector<Wire*>& inputs, const vector<Wire*>& outputs, 
+		const vector<Gate*>& gates, const vector<vector<char>>& input_vectors) {
 }
-
 
 void set_inputs(const map<string, Wire*>& inputs, const vector<char>& input_vector) {
 	for (auto const& [ey, input] : inputs) {
@@ -197,36 +193,52 @@ void set_inputs(const map<string, Wire*>& inputs, const vector<char>& input_vect
 
 
 
-tuple<map<string, Wire*>, map<string, Wire*>, map<string, Wire*>>
+tuple<vector<Wire*>, vector<Wire*>, vector<Wire*>>
 init_wires(const vector<vector<string>>& statements) {
-	map<string, Wire*> wires, inputs, outputs;
+	vector<Wire*> wires, inputs, outputs;
 	for (const auto& statement : statements) {
 		if (statement.size() == 0) {
 			continue;
 		}
 		if (statement[0] == "input") {
-			add_wires_to_map(statement, inputs);
+			add_wires_to_vector(statement, inputs);
 		}
 		if (statement[0] == "output") {
-			add_wires_to_map(statement, outputs);
+			add_wires_to_vector(statement, outputs);
 		}
 		if (statement[0] == "input" || statement[0] == "output" || statement[0] == "wire") {
-			add_wires_to_map(statement, wires);
+			add_wires_to_vector(statement, wires);
 		}
 	}
 
 	return {wires, inputs, outputs};
 }
 
-vector<Gate*> init_gates(const vector<vector<string>>& statements, const map<string, Wire*>& wires) {
+void add_wires_to_vector(const vector<string>& words, vector<Wire*>& v) {
+	for (int i = 1; i < words.size(); i++) {
+		const auto& word = words[i];
+		if (word == "wire") {
+			continue;
+		}
+
+		auto wire = new Wire(word);
+		v.push_back(wire);
+	}
+}
+
+
+vector<Gate*> init_gates(const vector<vector<string>>& statements, const vector<Wire*>& wires) {
 	vector<Gate*> gates;
+
+	map<string, Wire*> wires_map;
+	for (auto wire : wires) {
+		wires_map[wire->get_name()] = wire;
+	}
 	for (const auto& statement : statements) {
 		if (statement.size() < 4) {
 			continue;
 		}
 		Gate *gate;
-		// TODO
-		// mabey gate constructor?
 		if (statement[0] == "nand") {
 			gate = new Nand;
 		}
@@ -257,21 +269,10 @@ vector<Gate*> init_gates(const vector<vector<string>>& statements, const map<str
 		vector<string> inputs_str(statement.begin() + 2, statement.end() - 1);
 
 		Wire *output;
-		output = wires.at(output_str);
+		output = wires_map.at(output_str);
 		vector<Wire*> inputs(inputs_str.size());
-		//TODO check this
-		// cout << "{map}\n";
-		// for (auto [key, val] : wires) {
-		// 	cout << key << " ";
-		// }
-		// cout << "\n";
-		// cout << "{endMap}\n";
 		transform(inputs_str.begin(), inputs_str.end(), inputs.begin(), [&](const string& str) {
-				// cout << "{str}\n";
-				// cout << str << "\n";
-				// cout << "{endStr}";
-				// cout << endl;
-				return wires.at(str);
+				return wires_map.at(str);
 				});
 
 		gate->set_name(name);
@@ -282,18 +283,6 @@ vector<Gate*> init_gates(const vector<vector<string>>& statements, const map<str
 }
 
 
-void add_wires_to_map(const vector<string>& words, map<string, Wire*>& m) {
-	for (int i = 1; i < words.size(); i++) {
-		const auto& word = words[i];
-		if (word == "wire") {
-			continue;
-		}
-		if (m.find(word) == m.end()) {
-			//TODO Wire constructor
-			m[word] = new Wire;
-		}
-	}
-}
 
 string get_file_string(const string& filepath) {
 	ifstream file(filepath);
@@ -366,7 +355,13 @@ vector<char> wires_to_chars(vector<Wire*>& wires) {
 	return chars;
 }
 
-Wire::Wire() {}
+Wire::Wire(const string& _name) {
+	name = _name;
+}
+
+string Wire::get_name() {
+	return name;
+}
 
 void Gate::set_name(const string& _name) {
 	name = _name;
