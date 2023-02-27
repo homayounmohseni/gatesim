@@ -5,11 +5,10 @@
 #include <fstream>
 #include <map>
 #include <algorithm>
+#include <random>
+#include <cassert>
 
 using namespace std;
-
-string get_file_string(const string&);
-
 
 class Wire {
 public:
@@ -31,10 +30,9 @@ public:
 	bool are_inputs_valid();
 	void make_output_chagned();
 	virtual ~Gate() = default;
-	//TODO make inputs private
-	vector<Wire*> inputs;
 protected:
 	string name;
+	vector<Wire*> inputs;
 	Wire *output;
 };
 
@@ -80,8 +78,13 @@ public:
 	virtual void evaluate();
 };
 
+string get_file_string(const string&);
+
+vector<vector<char>> get_input_vectors(const string&);
 
 void cleanup(const vector<Wire*>&, const vector<Gate*>&);
+
+void randomize_gates(vector<Gate*>& gates); 
 
 void simulate_default_order(const vector<Wire*>&, const vector<Wire*>&, const vector<Wire*>&,
 		const vector<Gate*>&, const vector<vector<char>>&);
@@ -89,13 +92,16 @@ void simulate_default_order(const vector<Wire*>&, const vector<Wire*>&, const ve
 void simulate_ordered(const vector<Wire*>&, const vector<Wire*>&, const vector<Wire*>&,
 		const vector<Gate*>&, const vector<vector<char>>&);
 
-void print_wires(const vector<Wire*>&);
+void print_wire_names(const vector<Wire*>&);
+
+void print_wire_values(const vector<Wire*>&);
+
+
+void print_gates(const vector<Gate*>&);
 
 void set_inputs(const vector<Wire*>&, const vector<char>&);
 
 void reset_wires(const vector<Wire*>&);
-
-
 
 tuple<vector<Wire*>, vector<Wire*>, vector<Wire*>>
 init_wires(const vector<vector<string>>& statements);
@@ -113,45 +119,24 @@ template<typename T> bool is_any(const vector<T>&, const T&);
 vector<char> wires_to_chars(vector<Wire*>&);
 
 
-void print(const vector<string>& v) {
-	cout << "{count: " << v.size() << "}\n";
-	cout << "[\n";
-	// for (int i = 0; i < v.size(); i++) {
-	// 	cout << "{element " << i << "}:\n";
-	// 	cout << v[i] << "\n";
-	// 	for (char c : v[i]) {
-	// 		cout << (int)c << " ";
-	// 	}
-	// 	cout << "\n";
-	// }
-	for (const auto& _v : v) {
-		cout << _v << " ";
-	}
-	cout << "\n]";
-	cout << endl;
-}
-void print(const vector<vector<string>>& v) {
-	for (int i = 0; i < v.size(); i++) {
-		print(v[i]);
-	}
-}
-
-
-//TODO
 int main(int argc, char **argv) {
-	string filepath;
-	if (argc < 2) {
-		filepath = "c432.v";
+	string vfilepath;
+	string ifilepath;
+	if (argc < 3) {
+		vfilepath = "c432.v";
+		ifilepath = "inputs.txt";
 	}
 	else {
-		filepath = string(argv[1]);
+		vfilepath = string(argv[1]);
+		ifilepath = string(argv[2]);
 	}
 
-	string file_str = get_file_string(filepath);
+	string vfile_str = get_file_string(vfilepath);
+	vector<vector<char>> input_vectors = get_input_vectors(ifilepath);
 
 	vector<vector<string>> statements;
-	for (auto it = file_str.begin(); it != file_str.end(); ) {
-		auto words = extract_statement(file_str, it, {',', ' ', '\r', '\n', '\t', '(', ')'}, ';');
+	for (auto it = vfile_str.begin(); it != vfile_str.end(); ) {
+		auto words = extract_statement(vfile_str, it, {',', ' ', '\r', '\n', '\t', '(', ')'}, ';');
 		if (!words.empty()) {
 			statements.push_back(words);
 		}
@@ -160,25 +145,20 @@ int main(int argc, char **argv) {
 	auto [wires, inputs, outputs] = init_wires(statements);
 	vector<Gate*> gates = init_gates(statements, wires);
 
+	cout << "input names: \n";
+	print_wire_names(inputs);
+	cout << "output names: \n";
+	print_wire_names(outputs);
 
-
-	vector<vector<char>> input_vectors;
-	input_vectors.push_back(vector<char>(inputs.size(), '1'));
-	input_vectors.push_back(vector<char>(inputs.size(), '0'));
-	{
-		vector<char> vc;
-		for (int i = 0; i < inputs.size(); i++) {
-			vc.push_back('0' + i % 2);
-		}
-		input_vectors.push_back(vc);
-	}
-	
-
-
+	cout << "simulating with no randomization:\n";
 	simulate_default_order(wires, inputs, outputs, gates, input_vectors);
 	simulate_ordered(wires, inputs, outputs, gates, input_vectors);
 
-	// print(statements);
+	randomize_gates(gates);
+	cout << "\nsimulating with randomization:\n";
+	simulate_default_order(wires, inputs, outputs, gates, input_vectors);
+	simulate_ordered(wires, inputs, outputs, gates, input_vectors);
+
 	cleanup(wires, gates);
 	return 0;
 }
@@ -193,8 +173,14 @@ void cleanup(const vector<Wire*>& wires, const vector<Gate*>& gates) {
 	}
 }
 
+void randomize_gates(vector<Gate*>& gates) {
+	unsigned seed = 3239;
+	shuffle(gates.begin(), gates.end(), default_random_engine(seed));
+}
+
 void simulate_default_order(const vector<Wire*>& wires, const vector<Wire*>& inputs, const vector<Wire*>& outputs, 
 		const vector<Gate*>& gates, const vector<vector<char>>& input_vectors) {
+	cout << "simulating with default order\n";
 	for (const auto& input_vector : input_vectors) {
 		set_inputs(inputs, input_vector);
 		for (auto it = gates.begin(); it != gates.end(); it++) {
@@ -204,15 +190,19 @@ void simulate_default_order(const vector<Wire*>& wires, const vector<Wire*>& inp
 		for (auto gate : gates) {
 			gate->evaluate();
 		}
-		print_wires(inputs);
-		print_wires(outputs);
+		cout << "inputs:  ";
+		print_wire_values(inputs);
+		cout << "outputs: ";
+		print_wire_values(outputs);
 
 		reset_wires(wires);
 	}
 }
 
+
 void simulate_ordered (const vector<Wire*>& wires, const vector<Wire*>& inputs, const vector<Wire*>& outputs, 
 		const vector<Gate*>& gates, const vector<vector<char>>& input_vectors) {
+	cout << "simulating ordered\n";
 	for (const auto& input_vector : input_vectors) {
 		set_inputs(inputs, input_vector);
 
@@ -232,14 +222,25 @@ void simulate_ordered (const vector<Wire*>& wires, const vector<Wire*>& inputs, 
 				}
 			}
 		}
-		print_wires(inputs);
-		print_wires(outputs);
+		cout << "inputs:  ";
+		print_wire_values(inputs);
+		cout << "outputs: ";
+		print_wire_values(outputs);
 
 		reset_wires(wires);
 	}
 }
 
-void print_wires(const vector<Wire*>& wires) {
+void print_wire_names(const vector<Wire*>& wires) {
+	cout << "[";
+	for (auto it = wires.begin(); it != wires.end(); it++) {
+		auto wire = *it;
+		cout << wire->get_name() << " ";
+	}
+	cout << "]\n";
+}
+
+void print_wire_values(const vector<Wire*>& wires) {
 	for (auto it = wires.begin(); it != wires.end(); it++) {
 		auto wire = *it;
 		cout << wire->value;
@@ -247,7 +248,19 @@ void print_wires(const vector<Wire*>& wires) {
 	cout << '\n';
 }
 
+//TODO remove this
+void print_gates(const vector<Gate*>& gates) {
+	cout << "Gates:\n";
+
+	for (auto it = gates.begin(); it != gates.end(); it++) {
+		auto gate = *it;
+		cout << gate->get_name() << '\n';
+	}
+	cout << '\n';
+}
+
 void set_inputs(const vector<Wire*>& inputs, const vector<char>& input_vector) {
+	assert(inputs.size() == input_vector.size());
 	for (int i = 0; i < inputs.size(); i++) {
 		inputs[i]->value = input_vector[i];
 		inputs[i]->changed = true;
@@ -341,9 +354,7 @@ vector<Gate*> init_gates(const vector<vector<string>>& statements, const vector<
 		}
 
 		string name = statement[1];
-		// string output_str = statement.back();
 		string output_str = statement[2];
-		// vector<string> inputs_str(statement.begin() + 2, statement.end() - 1);
 		vector<string> inputs_str(statement.begin() + 3, statement.end());
 
 		Wire *output;
@@ -368,6 +379,16 @@ string get_file_string(const string& filepath) {
 			(istreambuf_iterator<char>()));
 	file.close();
 	return file_str;
+}
+
+vector<vector<char>> get_input_vectors(const string& filepath) {
+	ifstream file(filepath);
+	vector<vector<char>> input_vectors;
+	string line;
+	while (getline(file, line)) {
+		input_vectors.push_back(vector<char>(line.begin(), line.end()));
+	}
+	return input_vectors;
 }
 
 
