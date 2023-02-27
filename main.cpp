@@ -16,15 +16,16 @@ public:
 	Wire();
 	char value;
 private:
+	string name;
 	int activity_count;
 };
 
 class Gate {
 public:
-	Gate();
 	void set_io(const vector<Wire*>&, Wire * const);
 	void set_name(const string&);
 	virtual void evaluate() = 0;
+	virtual ~Gate() = default;
 protected:
 	string name;
 	vector<Wire*> inputs;
@@ -72,6 +73,15 @@ public:
 	Xnor();
 	virtual void evaluate();
 };
+
+
+void cleanup(const map<string, Wire*>&, const vector<Gate*>&);
+
+void simulate_default_order(const map<string, Wire*>&, const map<string, Wire*>&, const map<string, Wire*>&, 
+		const vector<Gate*>&, const vector<vector<char>>&);
+
+void simulate_ordered(const map<string, Wire*>&, const map<string, Wire*>&, const map<string, Wire*>&,
+		const vector<Gate*>&, const vector<vector<char>>);
 
 
 void add_wires_to_map(const vector<string>& statement, map<string, Wire*>&);
@@ -135,14 +145,57 @@ int main(int argc, char **argv) {
 		}
 	}
 
-	// map<string, Wire*> wires_map, inputs_map, outputs_map;
 	auto [wires_map, inputs_map, outputs_map] = init_wires(statements);
 	vector<Gate*> gates = init_gates(statements, wires_map);
 
-	// print(statements);
+	//simulating gates with defaul random order in the file
+	vector<vector<char>> input_vector;
+	//TODO
+	//you've got to initialize input_vector here
+	simulate_default_order(wires_map, inputs_map, outputs_map, gates, input_vector);
+	//simulating gaetes with the correct order
+	simulate_ordered(wires_map, inputs_map, outputs_map, gates, input_vector);
 
+	// print(statements);
+	cleanup(wires_map, gates);
 	return 0;
 }
+
+void cleanup(const map<string, Wire*>& wires, const vector<Gate*>& gates) {
+	for (auto const& [key, wire] : wires) {
+		delete wire;
+	}
+	for (auto const& gate : gates) {
+		delete gate;
+	}
+}
+
+void simulate_default_order(
+		const map<string, Wire*>& wires, const map<string, Wire*>& inputs,
+		const map<string, Wire*>& outputs, const vector<Gate*>& gates,
+		const vector<vector<char>>& input_vectors) {
+	for (const auto& input_vector : input_vectors) {
+		// set_inputs(inputs, input_vectors);
+		for (auto it = gates.begin(); it != gates.end(); it++) {
+			(*it)->evaluate();
+		}
+	}
+}
+
+void simulate_ordered(
+		const map<string, Wire*>& wires, const map<string, Wire*>& inputs,
+		const map<string, Wire*>& outputs, const vector<Gate*>& gates,
+		const vector<vector<char>>& input_vectors) {
+}
+
+
+void set_inputs(const map<string, Wire*>& inputs, const vector<char>& input_vector) {
+	for (auto const& [ey, input] : inputs) {
+		// input->value = 
+	}
+}
+
+
 
 tuple<map<string, Wire*>, map<string, Wire*>, map<string, Wire*>>
 init_wires(const vector<vector<string>>& statements) {
@@ -315,8 +368,6 @@ vector<char> wires_to_chars(vector<Wire*>& wires) {
 
 Wire::Wire() {}
 
-Gate::Gate() {}
-
 void Gate::set_name(const string& _name) {
 	name = _name;
 }
@@ -388,7 +439,6 @@ void Or::evaluate() {
 
 Xnor::Xnor() {}
 
-//TODO
 void Xnor::evaluate() {
 	int ones_cnt = 0;
 	for (const auto& input : inputs) {
