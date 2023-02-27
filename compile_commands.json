@@ -1,0 +1,12 @@
+[
+  {
+    "arguments": [
+      "/usr/bin/g++",
+      "-c",
+      "-std=c++17",
+      "main.cpp"
+    ],
+    "directory": "/home/hmyn/coding/courses/OOEM/A1",
+    "file": "/home/hmyn/coding/courses/OOEM/A1/main.cpp"
+  }
+]

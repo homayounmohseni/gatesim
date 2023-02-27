@@ -14,8 +14,9 @@ string get_file_string(const string&);
 class Wire {
 public:
 	Wire(const string&);
-	char value;
 	string get_name();
+	char value;
+	bool changed;
 private:
 	string name;
 	int activity_count;
@@ -25,11 +26,15 @@ class Gate {
 public:
 	void set_io(const vector<Wire*>&, Wire * const);
 	void set_name(const string&);
+	string get_name();
 	virtual void evaluate() = 0;
+	bool are_inputs_valid();
+	void make_output_chagned();
 	virtual ~Gate() = default;
+	//TODO make inputs private
+	vector<Wire*> inputs;
 protected:
 	string name;
-	vector<Wire*> inputs;
 	Wire *output;
 };
 
@@ -84,6 +89,12 @@ void simulate_default_order(const vector<Wire*>&, const vector<Wire*>&, const ve
 void simulate_ordered(const vector<Wire*>&, const vector<Wire*>&, const vector<Wire*>&,
 		const vector<Gate*>&, const vector<vector<char>>&);
 
+void print_wires(const vector<Wire*>&);
+
+void set_inputs(const vector<Wire*>&, const vector<char>&);
+
+void reset_wires(const vector<Wire*>&);
+
 
 
 tuple<vector<Wire*>, vector<Wire*>, vector<Wire*>>
@@ -91,7 +102,7 @@ init_wires(const vector<vector<string>>& statements);
 
 vector<Gate*> init_gates(const vector<vector<string>>&, const vector<Wire*>&);
 
-void add_wires_to_vector(const vector<string>& statement, vector<Wire*>&);
+void add_wires_to_vector(const vector<string>& statement, vector<Wire*>&, map<string, Wire*>&);
 
 vector<string> extract_statement(const string &, string::iterator&, const vector<char>&, char);
 
@@ -138,9 +149,8 @@ int main(int argc, char **argv) {
 
 	string file_str = get_file_string(filepath);
 
-	auto it = file_str.begin();
 	vector<vector<string>> statements;
-	while (it != file_str.end()) {
+	for (auto it = file_str.begin(); it != file_str.end(); ) {
 		auto words = extract_statement(file_str, it, {',', ' ', '\r', '\n', '\t', '(', ')'}, ';');
 		if (!words.empty()) {
 			statements.push_back(words);
@@ -150,9 +160,21 @@ int main(int argc, char **argv) {
 	auto [wires, inputs, outputs] = init_wires(statements);
 	vector<Gate*> gates = init_gates(statements, wires);
 
-	//TODO
-	//you've got to initialize input_vector here
+
+
 	vector<vector<char>> input_vectors;
+	input_vectors.push_back(vector<char>(inputs.size(), '1'));
+	input_vectors.push_back(vector<char>(inputs.size(), '0'));
+	{
+		vector<char> vc;
+		for (int i = 0; i < inputs.size(); i++) {
+			vc.push_back('0' + i % 2);
+		}
+		input_vectors.push_back(vc);
+	}
+	
+
+
 	simulate_default_order(wires, inputs, outputs, gates, input_vectors);
 	simulate_ordered(wires, inputs, outputs, gates, input_vectors);
 
@@ -174,54 +196,108 @@ void cleanup(const vector<Wire*>& wires, const vector<Gate*>& gates) {
 void simulate_default_order(const vector<Wire*>& wires, const vector<Wire*>& inputs, const vector<Wire*>& outputs, 
 		const vector<Gate*>& gates, const vector<vector<char>>& input_vectors) {
 	for (const auto& input_vector : input_vectors) {
-		// set_inputs(inputs, input_vectors);
+		set_inputs(inputs, input_vector);
 		for (auto it = gates.begin(); it != gates.end(); it++) {
 			(*it)->evaluate();
 		}
+
+		for (auto gate : gates) {
+			gate->evaluate();
+		}
+		print_wires(inputs);
+		print_wires(outputs);
+
+		reset_wires(wires);
 	}
 }
 
 void simulate_ordered (const vector<Wire*>& wires, const vector<Wire*>& inputs, const vector<Wire*>& outputs, 
 		const vector<Gate*>& gates, const vector<vector<char>>& input_vectors) {
-}
+	for (const auto& input_vector : input_vectors) {
+		set_inputs(inputs, input_vector);
 
-void set_inputs(const map<string, Wire*>& inputs, const vector<char>& input_vector) {
-	for (auto const& [ey, input] : inputs) {
-		// input->value = 
+		vector<Gate*> gates_left(gates);
+		while (!gates_left.empty()) {
+			// cout << gates_left.size() << '\n';
+			for (auto it = gates_left.begin(); it != gates_left.end(); ) {
+				auto gate = *it;
+				// cout << gate->get_name() << '\n';
+				if (gate->are_inputs_valid()) {
+					gate->evaluate();
+					gate->make_output_chagned();
+					gates_left.erase(it);
+				}
+				else {
+					it++;
+				}
+			}
+		}
+		print_wires(inputs);
+		print_wires(outputs);
+
+		reset_wires(wires);
 	}
 }
 
+void print_wires(const vector<Wire*>& wires) {
+	for (auto it = wires.begin(); it != wires.end(); it++) {
+		auto wire = *it;
+		cout << wire->value;
+	}
+	cout << '\n';
+}
 
+void set_inputs(const vector<Wire*>& inputs, const vector<char>& input_vector) {
+	for (int i = 0; i < inputs.size(); i++) {
+		inputs[i]->value = input_vector[i];
+		inputs[i]->changed = true;
+	}
+}
+
+void reset_wires(const vector<Wire*>& wires) {
+	for (auto wire : wires) {
+		wire->value = 'x';
+		wire->changed = false;
+	}
+}
 
 tuple<vector<Wire*>, vector<Wire*>, vector<Wire*>>
 init_wires(const vector<vector<string>>& statements) {
 	vector<Wire*> wires, inputs, outputs;
+	map<string, Wire*> wires_map;
 	for (const auto& statement : statements) {
 		if (statement.size() == 0) {
 			continue;
 		}
 		if (statement[0] == "input") {
-			add_wires_to_vector(statement, inputs);
+			add_wires_to_vector(statement, inputs, wires_map);
 		}
 		if (statement[0] == "output") {
-			add_wires_to_vector(statement, outputs);
+			add_wires_to_vector(statement, outputs, wires_map);
 		}
 		if (statement[0] == "input" || statement[0] == "output" || statement[0] == "wire") {
-			add_wires_to_vector(statement, wires);
+			add_wires_to_vector(statement, wires, wires_map);
 		}
 	}
 
 	return {wires, inputs, outputs};
 }
 
-void add_wires_to_vector(const vector<string>& words, vector<Wire*>& v) {
+void add_wires_to_vector(const vector<string>& words, vector<Wire*>& v, map<string, Wire*>& m) {
 	for (int i = 1; i < words.size(); i++) {
 		const auto& word = words[i];
 		if (word == "wire") {
 			continue;
 		}
 
-		auto wire = new Wire(word);
+		Wire *wire;
+		if (m.find(word) == m.end()) {
+			wire = new Wire(word);
+			m[word] = wire;
+		}
+		else {
+			wire = m.at(word);
+		}
 		v.push_back(wire);
 	}
 }
@@ -242,22 +318,22 @@ vector<Gate*> init_gates(const vector<vector<string>>& statements, const vector<
 		if (statement[0] == "nand") {
 			gate = new Nand;
 		}
-		if (statement[0] == "and") {
+		else if (statement[0] == "and") {
 			gate = new And;
 		}
-		if (statement[0] == "nor") {
+		else if (statement[0] == "nor") {
 			gate = new Nor;
 		}
-		if (statement[0] == "or") {
+		else if (statement[0] == "or") {
 			gate = new Or;
 		}
-		if (statement[0] == "xor") {
+		else if (statement[0] == "xor") {
 			gate = new Xor;
 		}
-		if (statement[0] == "xnor") {
+		else if (statement[0] == "xnor") {
 			gate = new Xnor;
 		}
-		if (statement[0] == "not") {
+		else if (statement[0] == "not") {
 			gate = new Not;
 		}
 		else {
@@ -265,8 +341,10 @@ vector<Gate*> init_gates(const vector<vector<string>>& statements, const vector<
 		}
 
 		string name = statement[1];
-		string output_str = statement.back();
-		vector<string> inputs_str(statement.begin() + 2, statement.end() - 1);
+		// string output_str = statement.back();
+		string output_str = statement[2];
+		// vector<string> inputs_str(statement.begin() + 2, statement.end() - 1);
+		vector<string> inputs_str(statement.begin() + 3, statement.end());
 
 		Wire *output;
 		output = wires_map.at(output_str);
@@ -356,20 +434,35 @@ vector<char> wires_to_chars(vector<Wire*>& wires) {
 }
 
 Wire::Wire(const string& _name) {
+	value = 'x';
 	name = _name;
+	changed = false;
 }
 
 string Wire::get_name() {
 	return name;
 }
 
+
 void Gate::set_name(const string& _name) {
 	name = _name;
+}
+
+string Gate::get_name() {
+	return name;
 }
 
 void Gate::set_io(const vector<Wire*>& _inputs, Wire * const _output) {
 	inputs = _inputs;
 	output = _output;
+}
+
+bool Gate::are_inputs_valid() {
+	return all_of(inputs.begin(), inputs.end(), [](Wire *wire) { return wire->changed; });
+}
+
+void Gate::make_output_chagned() {
+	output->changed = true;
 }
 
 Nand::Nand() {}
