@@ -3,7 +3,7 @@ FLAGS = -std=c++17
 INCDIR = -I .
 OBJS = primitives.o main.o
 
-a.out: $(OBJS)
+main.out: $(OBJS)
 	$(CC) -o $@ $(OBJS) $(FLAGS)
 
 %.o: %.c $(DEPS)
