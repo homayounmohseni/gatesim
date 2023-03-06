@@ -54,67 +54,75 @@ void Gate::make_output_chagned() {
 
 Nand::Nand() {}
 
-void Nand::evaluate() {
+pair<ActivityEntry, int> Nand::evaluate() {
 	auto inputs_char = wires_to_chars(inputs);
+	char value;
 	if (are_all(inputs_char, '1')) {
-		output->value = '0';
+		value = '0';
 	}
 	else if (is_any(inputs_char, '0')) {
-		output->value = '1';
+		value = '1';
 	}
 	else {
-		output->value = 'x';
+		value = 'x';
 	}
+	return {{output, value}, delay};
 }
 
 And::And() {}
 
-void And::evaluate() {
+pair<ActivityEntry, int> And::evaluate() {
 	auto inputs_char = wires_to_chars(inputs);
+	char value;
 	if (are_all(inputs_char, '1')) {
-		output->value = '1';
+		value = '1';
 	}
 	else if (is_any(inputs_char, '0')) {
-		output->value = '0';
+		value = '0';
 	}
 	else {
-		output->value = 'x';
+		value = 'x';
 	}
+	return {{output, value}, delay};
 }
 
 Nor::Nor() {}
 
-void Nor::evaluate() {
+pair<ActivityEntry, int> Nor::evaluate() {
 	auto inputs_char = wires_to_chars(inputs);
+	char value;
 	if (is_any(inputs_char, '1')) {
-		output->value = '0';
+		value = '0';
 	}
 	else if (are_all(inputs_char, '0')) {
-		output->value = '1';
+		value = '1';
 	}
 	else {
-		output->value = 'x';
+		value = 'x';
 	}
+	return {{output, value}, delay};
 }
 
 Or::Or() {}
 
-void Or::evaluate() {
+pair<ActivityEntry, int> Or::evaluate() {
 	auto inputs_char = wires_to_chars(inputs);
+	char value;
 	if (is_any(inputs_char, '1')) {
-		output->value = '1';
+		value = '1';
 	}
 	else if (are_all(inputs_char, '0')) {
-		output->value = '0';
+		value = '0';
 	}
 	else {
-		output->value = 'x';
+		value = 'x';
 	}
+	return {{output, value}, delay};
 }
 
 Xnor::Xnor() {}
 
-void Xnor::evaluate() {
+pair<ActivityEntry, int> Xnor::evaluate() {
 	int ones_cnt = 0;
 	for (const auto& input : inputs) {
 		if (input->value == '1') {
@@ -122,20 +130,22 @@ void Xnor::evaluate() {
 		}
 		else if (input->value != '0') {
 			output->value = 'x';
-			return;
+			return {{output, 'x'}, delay};
 		}
 	}
+	char value;
 	if (ones_cnt % 2 == 0) {
-		output->value = '1';
+		value = '1';
 	}
 	else {
-		output->value = '0';
+		value = '0';
 	}
+	return {{output, value}, delay};
 }
 
 Xor::Xor() {}
 
-void Xor::evaluate() {
+pair<ActivityEntry, int> Xor::evaluate() {
 	int ones_cnt = 0;
 	for (const auto& input : inputs) {
 		if (input->value == '1') {
@@ -143,27 +153,31 @@ void Xor::evaluate() {
 		}
 		else if (input->value != '0') {
 			output->value = 'x';
-			return;
+			return {{output, 'x'}, delay};
 		}
 	}
+	char value;
 	if (ones_cnt % 2 == 0) {
-		output->value = '0';
+		value = '0';
 	}
 	else {
-		output->value = '1';
+		value = '1';
 	}
+	return {{output, value}, delay};
 }
 
 Not::Not() {}
 
-void Not::evaluate() {
+pair<ActivityEntry, int> Not::evaluate() {
+	char value;
 	if (inputs[0]->value == '0') {
-		output->value = '1';
+		value = '1';
 	}
 	else if (inputs[0]->value == '1') {
-		output->value = '0';
+		value = '0';
 	}
 	else {
-		output->value = 'x';
+		value = 'x';
 	}
+	return {{output, value}, delay};
 }

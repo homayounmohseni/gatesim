@@ -1,3 +1,8 @@
+// TODO
+// implement EventEngine member functions
+// implement a way to get gate delays from input
+// implement vcd dump functionality
+//
 #include <iostream>
 #include <iterator>
 #include <vector>
@@ -7,11 +12,31 @@
 #include <algorithm>
 #include <random>
 #include <cassert>
+#include <list>
 
 #include "primitives.hpp"
 
+//TODO
+// in a wire you've gotta hold a reference to the next gate (the gate whose inputs contains this
+// wire), because whenver a wire is changed, all next gates of it should be reevaluated and 
+// their output shold be scheduled to take effect at a later time, those updates will also 
+// cause other evaluations until we reach the primary outputs of the circuit (assuming a pure
+// combinational architecture)
+
 using namespace std;
 
+
+class EventEngine {
+public:
+	EventEngine();
+	void run(int);
+
+	void schedule_activity(Wire*, char, int);
+	void schedule_activity(const ActivityEntry&, int);
+private:
+	int cur_time;
+	vector<list<ActivityEntry>> time_vector;
+};
 
 string get_file_string(const string&);
 
@@ -91,6 +116,25 @@ int main(int argc, char **argv) {
 
 	cleanup(wires, gates);
 	return 0;
+}
+
+EventEngine::EventEngine() {}
+
+void EventEngine::schedule_activity(const ActivityEntry& ae, int delay) {
+	//TODO
+}
+
+void EventEngine::run(int runtime_duration) {
+	for (cur_time = 0; cur_time < runtime_duration; cur_time++) {
+		int cur_index = cur_time % time_vector.size();
+		for (auto [wire, value] : time_vector[cur_index]) {
+			wire->value = value;
+			for (auto gate : wire->output_gates) {
+				auto [ae, delay] = gate->evaluate();
+				schedule_activity(ae, delay);
+			}
+		}
+	}
 }
 
 
@@ -290,6 +334,10 @@ vector<Gate*> init_gates(const vector<vector<string>>& statements, const vector<
 		transform(inputs_str.begin(), inputs_str.end(), inputs.begin(), [&](const string& str) {
 				return wires_map.at(str);
 				});
+
+		for (auto input : inputs) {
+			input->output_gates.push_back(gate);
+		}
 
 		gate->set_name(name);
 		gate->set_io(inputs, output);
