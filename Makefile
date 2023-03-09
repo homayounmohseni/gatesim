@@ -2,7 +2,7 @@ CC = g++
 FLAGS = -std=c++17 -O1
 INCDIR = -I .
 OBJS = primitives.o main.o
-DEPS = primitives.hpp
+DEPS = primitives.hpp main.hpp
 
 main.out: $(OBJS) $(DEPS)
 	$(CC) $(FLAGS) -o $@ $(OBJS)

@@ -3,18 +3,7 @@
 // implement a way to get gate delays from input
 // implement vcd dump functionality
 //
-#include <iostream>
-#include <iterator>
-#include <vector>
-#include <string>
-#include <fstream>
-#include <map>
-#include <algorithm>
-#include <random>
-#include <cassert>
-#include <list>
-
-#include "primitives.hpp"
+#include "main.hpp"
 
 //TODO
 // in a wire you've gotta hold a reference to the next gate (the gate whose inputs contains this
@@ -25,64 +14,17 @@
 
 using namespace std;
 
-
-class EventEngine {
-public:
-	EventEngine();
-	void run(int);
-
-	void schedule_activity(Wire*, char, int);
-	void schedule_activity(const ActivityEntry&, int);
-private:
-	int cur_time;
-	vector<list<ActivityEntry>> time_vector;
-};
-
-string get_file_string(const string&);
-
-vector<vector<char>> get_input_vectors(const string&);
-
-void cleanup(const vector<Wire*>&, const vector<Gate*>&);
-
-void randomize_gates(vector<Gate*>& gates); 
-
-void simulate_default_order(const vector<Wire*>&, const vector<Wire*>&, const vector<Wire*>&,
-		const vector<Gate*>&, const vector<vector<char>>&);
-
-void simulate_ordered(const vector<Wire*>&, const vector<Wire*>&, const vector<Wire*>&,
-		const vector<Gate*>&, const vector<vector<char>>&);
-
-void print_wire_names(const vector<Wire*>&);
-
-void print_wire_values(const vector<Wire*>&);
-
-
-void print_gates(const vector<Gate*>&);
-
-void set_inputs(const vector<Wire*>&, const vector<char>&);
-
-void reset_wires(const vector<Wire*>&);
-
-tuple<vector<Wire*>, vector<Wire*>, vector<Wire*>>
-init_wires(const vector<vector<string>>& statements);
-
-vector<Gate*> init_gates(const vector<vector<string>>&, const vector<Wire*>&);
-
-void add_wires_to_vector(const vector<string>& statement, vector<Wire*>&, map<string, Wire*>&);
-
-vector<string> extract_statement(const string &, string::iterator&, const vector<char>&, char);
-
-
 int main(int argc, char **argv) {
-	string vfilepath;
-	string ifilepath;
-	if (argc < 3) {
+	string vfilepath, ifilepath, ofilepath;
+	if (argc < 4) {
 		vfilepath = "c432.v";
 		ifilepath = "inputs.txt";
+		ofilepath = "wave.vcd";
 	}
 	else {
 		vfilepath = string(argv[1]);
 		ifilepath = string(argv[2]);
+		ofilepath = string(argv[3]);
 	}
 
 	string vfile_str = get_file_string(vfilepath);
@@ -98,6 +40,10 @@ int main(int argc, char **argv) {
 
 	auto [wires, inputs, outputs] = init_wires(statements);
 	vector<Gate*> gates = init_gates(statements, wires);
+
+	
+	VCDTracer tracer(ofilepath);
+	EventEngine engine(1000, &tracer);
 
 	cout << "input names: \n";
 	print_wire_names(inputs);
@@ -118,10 +64,40 @@ int main(int argc, char **argv) {
 	return 0;
 }
 
-EventEngine::EventEngine() {}
+VCDTracer::VCDTracer(const string& _dumpfilepath) {
+	dumpfilepath = _dumpfilepath;
+}
 
-void EventEngine::schedule_activity(const ActivityEntry& ae, int delay) {
+void VCDTracer::add_change(int time, Wire *wire, char value) {
+	if (!change_vector.empty() && change_vector.back().first == time) {
+		auto& changes = change_vector.back().second;
+		changes.push_back({wire, value});
+	}
+	else {
+		vector<ActivityEntry> changes {{wire, value}};
+		change_vector.push_back({time, changes});
+	}
+}
+
+void VCDTracer::dump() const {
 	//TODO
+}
+
+
+EventEngine::EventEngine(int size, VCDTracer *_tracer) {
+	time_vector.resize(size);
+	tracer = _tracer;
+}
+
+void EventEngine::schedule_activity(const ActivityEntry ae, int delay) {
+	int ind = (cur_time + delay) % time_vector.size();
+	time_vector[ind].push_back(ae);
+}
+
+void EventEngine::schedule_activity(const vector<pair<ActivityEntry, int>>& entries) {
+	for (const auto& entry : entries) {
+		schedule_activity(entry.first, entry.second);
+	}
 }
 
 void EventEngine::run(int runtime_duration) {
@@ -129,11 +105,13 @@ void EventEngine::run(int runtime_duration) {
 		int cur_index = cur_time % time_vector.size();
 		for (auto [wire, value] : time_vector[cur_index]) {
 			wire->value = value;
+			tracer->add_change(cur_time, wire, value);
 			for (auto gate : wire->output_gates) {
 				auto [ae, delay] = gate->evaluate();
 				schedule_activity(ae, delay);
 			}
 		}
+		time_vector[cur_index].clear();
 	}
 }
 
