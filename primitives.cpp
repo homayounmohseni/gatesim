@@ -26,7 +26,7 @@ Wire::Wire(const string& _name) {
 	changed = false;
 }
 
-string Wire::get_name() {
+string Wire::get_name() const {
 	return name;
 }
 
@@ -35,7 +35,7 @@ void Gate::set_name(const string& _name) {
 	name = _name;
 }
 
-string Gate::get_name() {
+string Gate::get_name() const {
 	return name;
 }
 

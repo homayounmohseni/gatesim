@@ -13,7 +13,7 @@ typedef std::pair<Wire*, char> ActivityEntry;
 class Wire {
 public:
 	Wire(const std::string&);
-	std::string get_name();
+	std::string get_name() const;
 	char value;
 	bool changed;
 	std::vector<Gate*> output_gates;
@@ -25,7 +25,7 @@ class Gate {
 public:
 	void set_io(const std::vector<Wire*>&, Wire * const);
 	void set_name(const std::string&);
-	std::string get_name();
+	std::string get_name() const;
 	virtual std::pair<ActivityEntry, int> evaluate() = 0;
 	// virtual void evaluate() = 0;
 	bool are_inputs_valid();
