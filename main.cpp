@@ -3,7 +3,9 @@
 // implement a way to get gate delays from input
 // implement vcd dump functionality
 //
+// do the netlist representation
 #include "main.hpp"
+#include "primitives.hpp"
 
 //TODO
 // in a wire you've gotta hold a reference to the next gate (the gate whose inputs contains this
@@ -15,20 +17,22 @@
 using namespace std;
 
 int main(int argc, char **argv) {
-	string vfilepath, ifilepath, ofilepath;
-	if (argc < 4) {
+	string vfilepath, ifilepath, ofilepath, input_feed_filepath;
+	if (argc < 5) {
 		vfilepath = "c432.v";
 		ifilepath = "inputs.txt";
 		ofilepath = "wave.vcd";
+		input_feed_filepath = "inputfeed.txt";
 	}
 	else {
 		vfilepath = string(argv[1]);
 		ifilepath = string(argv[2]);
 		ofilepath = string(argv[3]);
+		input_feed_filepath = string(argv[4]);
 	}
 
 	string vfile_str = get_file_string(vfilepath);
-	vector<vector<char>> input_vectors = get_input_vectors(ifilepath);
+	// vector<vector<char>> input_vectors = get_input_vectors(ifilepath);
 
 	vector<vector<string>> statements;
 	for (auto it = vfile_str.begin(); it != vfile_str.end(); ) {
@@ -40,43 +44,41 @@ int main(int argc, char **argv) {
 
 	auto [wires, inputs, outputs] = init_wires(statements);
 	vector<Gate*> gates = init_gates(statements, wires);
+	auto input_feed = get_input_feed(input_feed_filepath, inputs);
 
-	
 	VCDTracer tracer(ofilepath);
-	EventEngine engine(1000, &tracer);
+	EventEngine engine(input_feed, &tracer);
+	//
+	// engine.schedule_activity();
+	// engine.run(5000);
 
-	cout << "input names: \n";
-	print_wire_names(inputs);
-	cout << "output names: \n";
-	print_wire_names(outputs);
-	cout << '\n';
-
-	cout << "simulating with no randomization:\n";
-	simulate_default_order(wires, inputs, outputs, gates, input_vectors);
-	simulate_ordered(wires, inputs, outputs, gates, input_vectors);
-
-	randomize_gates(gates);
-	cout << "\nsimulating with randomization:\n";
-	simulate_default_order(wires, inputs, outputs, gates, input_vectors);
-	simulate_ordered(wires, inputs, outputs, gates, input_vectors);
-
-	cleanup(wires, gates);
+	// NOTE continue from here
+	// gheck engine.run()
+	// also consider gate delays
+	//
+	// cout << "input names: \n";
+	// print_wire_names(inputs);
+	// cout << "output names: \n";
+	// print_wire_names(outputs);
+	// cout << '\n';
+	//
+	// cout << "simulating with no randomization:\n";
+	// simulate_default_order(wires, inputs, outputs, gates, input_vectors);
+	// simulate_ordered(wires, inputs, outputs, gates, input_vectors);
+	//
+	// randomize_gates(gates);
+	// cout << "\nsimulating with randomization:\n";
+	// simulate_default_order(wires, inputs, outputs, gates, input_vectors);
+	// simulate_ordered(wires, inputs, outputs, gates, input_vectors);
+	//
+	// cleanup(wires, gates);
 	return 0;
 }
 
-VCDTracer::VCDTracer(const string& _dumpfilepath) {
-	dumpfilepath = _dumpfilepath;
-}
+VCDTracer::VCDTracer(const string& _dumpfilepath) : dumpfilepath(_dumpfilepath) {}
 
-void VCDTracer::add_change(int time, Wire *wire, char value) {
-	if (!change_vector.empty() && change_vector.back().first == time) {
-		auto& changes = change_vector.back().second;
-		changes.push_back({wire, value});
-	}
-	else {
-		vector<ActivityEntry> changes {{wire, value}};
-		change_vector.push_back({time, changes});
-	}
+void VCDTracer::add_change(const Event& event) {
+	change_vector.push_back(event);
 }
 
 void VCDTracer::dump() const {
@@ -84,37 +86,49 @@ void VCDTracer::dump() const {
 }
 
 
-EventEngine::EventEngine(int size, VCDTracer *_tracer) {
-	time_vector.resize(size);
+EventEngine::EventEngine(const list<Event>& _input_feed,
+		VCDTracer *_tracer) : input_feed(_input_feed) {
 	tracer = _tracer;
 }
 
-void EventEngine::schedule_activity(const ActivityEntry ae, int delay) {
-	int ind = (cur_time + delay) % time_vector.size();
-	time_vector[ind].push_back(ae);
+
+
+void EventEngine::schedule_activity(const Event& event) {
+	int ind = event.time % time_array.size();
+	time_array[ind].push_back(event.wire_assignment);
 }
 
-void EventEngine::schedule_activity(const vector<pair<ActivityEntry, int>>& entries) {
-	for (const auto& entry : entries) {
-		schedule_activity(entry.first, entry.second);
+void EventEngine::schedule_activity(const Event& event, int added_time) {
+	int ind = (event.time + added_time) % time_array.size();
+	time_array[ind].push_back(event.wire_assignment);
+}
+
+void EventEngine::schedule_activity(const vector<Event>& events) {
+	for (const auto& event : events) {
+		schedule_activity(event);
 	}
 }
 
 void EventEngine::run(int runtime_duration) {
-	for (cur_time = 0; cur_time < runtime_duration; cur_time++) {
-		int cur_index = cur_time % time_vector.size();
-		for (auto [wire, value] : time_vector[cur_index]) {
+	for (int cur_time = 0; cur_time < runtime_duration; cur_time++) {
+		int cur_index = cur_time % time_array.size();
+		if (!input_feed.empty() && input_feed.front().time == cur_time) {
+			time_array[cur_index].push_front(input_feed.front().wire_assignment);
+			input_feed.pop_front();
+		}
+		for (const auto& wire_assignment : time_array[cur_index]) {
+			const auto [wire, value] = wire_assignment;
 			wire->value = value;
-			tracer->add_change(cur_time, wire, value);
+			//TODO this is not yet done
+			tracer->add_change({wire_assignment, cur_time});
 			for (auto gate : wire->output_gates) {
-				auto [ae, delay] = gate->evaluate();
-				schedule_activity(ae, delay);
+				auto new_event = gate->evaluate();
+				schedule_activity(new_event, cur_time);
 			}
 		}
-		time_vector[cur_index].clear();
+		time_array[cur_index].clear();
 	}
 }
-
 
 void cleanup(const vector<Wire*>& wires, const vector<Gate*>& gates) {
 	for (const auto& wire : wires) {
@@ -226,7 +240,7 @@ void reset_wires(const vector<Wire*>& wires) {
 tuple<vector<Wire*>, vector<Wire*>, vector<Wire*>>
 init_wires(const vector<vector<string>>& statements) {
 	vector<Wire*> wires, inputs, outputs;
-	map<string, Wire*> wires_map;
+	unordered_map<string, Wire*> wires_map;
 	for (const auto& statement : statements) {
 		if (statement.size() == 0) {
 			continue;
@@ -245,7 +259,7 @@ init_wires(const vector<vector<string>>& statements) {
 	return {wires, inputs, outputs};
 }
 
-void add_wires_to_vector(const vector<string>& words, vector<Wire*>& v, map<string, Wire*>& m) {
+void add_wires_to_vector(const vector<string>& words, vector<Wire*>& v, unordered_map<string, Wire*>& m) {
 	for (int i = 1; i < words.size(); i++) {
 		const auto& word = words[i];
 		if (word == "wire") {
@@ -268,7 +282,7 @@ void add_wires_to_vector(const vector<string>& words, vector<Wire*>& v, map<stri
 vector<Gate*> init_gates(const vector<vector<string>>& statements, const vector<Wire*>& wires) {
 	vector<Gate*> gates;
 
-	map<string, Wire*> wires_map;
+	unordered_map<string, Wire*> wires_map;
 	for (auto wire : wires) {
 		wires_map[wire->get_name()] = wire;
 	}
@@ -342,6 +356,30 @@ vector<vector<char>> get_input_vectors(const string& filepath) {
 		input_vectors.push_back(vector<char>(line.begin(), line.end()));
 	}
 	return input_vectors;
+}
+
+list<Event> get_input_feed(const string& filepath, const vector<Wire*>& inputs) {
+	unordered_map<string, Wire*> inputs_map;
+	for (auto input : inputs) {
+		inputs_map[input->get_name()] = input;
+	}
+
+	ifstream file(filepath);
+	list<Event> input_feed;
+	// input format: <input_name>, <input_value>, <input_scheduled_time>
+	// it is expected that scheduled_time of input_feed elements are increasing
+	string word;
+	while (file >> word) {
+		Event event;
+		event.wire_assignment.wire = inputs_map.at(word);
+		file >> word;
+		assert(word.size() == 1);
+		event.wire_assignment.value = word[0];
+		file >> word;
+		event.time = stoi(word);
+		input_feed.push_back(event);
+	}
+	return input_feed;
 }
 
 

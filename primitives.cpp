@@ -54,7 +54,7 @@ void Gate::make_output_chagned() {
 
 Nand::Nand() {}
 
-pair<ActivityEntry, int> Nand::evaluate() {
+Event Nand::evaluate() {
 	auto inputs_char = wires_to_chars(inputs);
 	char value;
 	if (are_all(inputs_char, '1')) {
@@ -71,7 +71,7 @@ pair<ActivityEntry, int> Nand::evaluate() {
 
 And::And() {}
 
-pair<ActivityEntry, int> And::evaluate() {
+Event And::evaluate() {
 	auto inputs_char = wires_to_chars(inputs);
 	char value;
 	if (are_all(inputs_char, '1')) {
@@ -88,7 +88,7 @@ pair<ActivityEntry, int> And::evaluate() {
 
 Nor::Nor() {}
 
-pair<ActivityEntry, int> Nor::evaluate() {
+Event Nor::evaluate() {
 	auto inputs_char = wires_to_chars(inputs);
 	char value;
 	if (is_any(inputs_char, '1')) {
@@ -105,7 +105,7 @@ pair<ActivityEntry, int> Nor::evaluate() {
 
 Or::Or() {}
 
-pair<ActivityEntry, int> Or::evaluate() {
+Event Or::evaluate() {
 	auto inputs_char = wires_to_chars(inputs);
 	char value;
 	if (is_any(inputs_char, '1')) {
@@ -122,7 +122,7 @@ pair<ActivityEntry, int> Or::evaluate() {
 
 Xnor::Xnor() {}
 
-pair<ActivityEntry, int> Xnor::evaluate() {
+Event Xnor::evaluate() {
 	int ones_cnt = 0;
 	for (const auto& input : inputs) {
 		if (input->value == '1') {
@@ -145,7 +145,7 @@ pair<ActivityEntry, int> Xnor::evaluate() {
 
 Xor::Xor() {}
 
-pair<ActivityEntry, int> Xor::evaluate() {
+Event Xor::evaluate() {
 	int ones_cnt = 0;
 	for (const auto& input : inputs) {
 		if (input->value == '1') {
@@ -168,7 +168,7 @@ pair<ActivityEntry, int> Xor::evaluate() {
 
 Not::Not() {}
 
-pair<ActivityEntry, int> Not::evaluate() {
+Event Not::evaluate() {
 	char value;
 	if (inputs[0]->value == '0') {
 		value = '1';
