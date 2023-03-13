@@ -48,30 +48,12 @@ int main(int argc, char **argv) {
 
 	VCDTracer tracer(ofilepath);
 	EventEngine engine(input_feed, &tracer);
-	//
+
 	// engine.schedule_activity();
 	// engine.run(5000);
 
-	// NOTE continue from here
-	// gheck engine.run()
-	// also consider gate delays
-	//
-	// cout << "input names: \n";
-	// print_wire_names(inputs);
-	// cout << "output names: \n";
-	// print_wire_names(outputs);
-	// cout << '\n';
-	//
-	// cout << "simulating with no randomization:\n";
-	// simulate_default_order(wires, inputs, outputs, gates, input_vectors);
-	// simulate_ordered(wires, inputs, outputs, gates, input_vectors);
-	//
 	// randomize_gates(gates);
-	// cout << "\nsimulating with randomization:\n";
-	// simulate_default_order(wires, inputs, outputs, gates, input_vectors);
-	// simulate_ordered(wires, inputs, outputs, gates, input_vectors);
-	//
-	// cleanup(wires, gates);
+	cleanup(wires, gates);
 	return 0;
 }
 
@@ -144,56 +126,6 @@ void randomize_gates(vector<Gate*>& gates) {
 	shuffle(gates.begin(), gates.end(), default_random_engine(seed));
 }
 
-void simulate_default_order(const vector<Wire*>& wires, const vector<Wire*>& inputs, const vector<Wire*>& outputs, 
-		const vector<Gate*>& gates, const vector<vector<char>>& input_vectors) {
-	cout << "simulating with default order\n";
-	for (const auto& input_vector : input_vectors) {
-		set_inputs(inputs, input_vector);
-		for (auto it = gates.begin(); it != gates.end(); it++) {
-			(*it)->evaluate();
-		}
-
-		for (auto gate : gates) {
-			gate->evaluate();
-		}
-		cout << "inputs:  ";
-		print_wire_values(inputs);
-		cout << "outputs: ";
-		print_wire_values(outputs);
-
-		reset_wires(wires);
-	}
-}
-
-
-void simulate_ordered (const vector<Wire*>& wires, const vector<Wire*>& inputs, const vector<Wire*>& outputs, 
-		const vector<Gate*>& gates, const vector<vector<char>>& input_vectors) {
-	cout << "simulating ordered\n";
-	for (const auto& input_vector : input_vectors) {
-		set_inputs(inputs, input_vector);
-
-		vector<Gate*> gates_left(gates);
-		while (!gates_left.empty()) {
-			for (auto it = gates_left.begin(); it != gates_left.end(); ) {
-				auto gate = *it;
-				if (gate->are_inputs_valid()) {
-					gate->evaluate();
-					gate->make_output_chagned();
-					gates_left.erase(it);
-				}
-				else {
-					it++;
-				}
-			}
-		}
-		cout << "inputs:  ";
-		print_wire_values(inputs);
-		cout << "outputs: ";
-		print_wire_values(outputs);
-
-		reset_wires(wires);
-	}
-}
 
 void print_wire_names(const vector<Wire*>& wires) {
 	cout << "[";
@@ -230,12 +162,6 @@ void set_inputs(const vector<Wire*>& inputs, const vector<char>& input_vector) {
 	}
 }
 
-void reset_wires(const vector<Wire*>& wires) {
-	for (auto wire : wires) {
-		wire->value = 'x';
-		wire->changed = false;
-	}
-}
 
 tuple<vector<Wire*>, vector<Wire*>, vector<Wire*>>
 init_wires(const vector<vector<string>>& statements) {

@@ -7,9 +7,6 @@
 class Gate;
 class Wire;
 
-
-// typedef std::pair<Wire*, char> ActivityEntry;
-
 struct WireAssignment {
 	Wire *wire;
 	char value;
@@ -37,8 +34,6 @@ public:
 	void set_name(const std::string&);
 	std::string get_name() const;
 	virtual Event evaluate() = 0;
-	// virtual std::pair<ActivityEntry, int> evaluate() = 0;
-	// virtual void evaluate() = 0;
 	bool are_inputs_valid();
 	void make_output_chagned();
 	virtual ~Gate() = default;
@@ -53,7 +48,6 @@ class Not : public Gate {
 public:
 	Not();
 	virtual Event evaluate();
-	// virtual std::pair<ActivityEntry, int> evaluate();
 };
 
 class Nand : public Gate {
