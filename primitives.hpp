@@ -4,6 +4,14 @@
 #include <string>
 #include <vector>
 
+const int NOT_DELAY = 2;
+const int NAND_DELAY = 5;
+const int AND_DELAY = 3;
+const int NOR_DELAY = 4;
+const int OR_DELAY = 4;
+const int XOR_DELAY = 6;
+const int XNOR_DELAY = 6;
+
 class Gate;
 class Wire;
 
@@ -22,7 +30,6 @@ public:
 	Wire(const std::string&);
 	std::string get_name() const;
 	char value;
-	bool changed;
 	std::vector<Gate*> output_gates;
 private:
 	std::string name;
@@ -34,8 +41,6 @@ public:
 	void set_name(const std::string&);
 	std::string get_name() const;
 	virtual Event evaluate() = 0;
-	bool are_inputs_valid();
-	void make_output_chagned();
 	virtual ~Gate() = default;
 protected:
 	std::string name;

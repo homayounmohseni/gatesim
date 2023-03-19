@@ -23,7 +23,6 @@ vector<char> wires_to_chars(vector<Wire*>& wires) {
 Wire::Wire(const string& _name) {
 	value = 'x';
 	name = _name;
-	changed = false;
 }
 
 string Wire::get_name() const {
@@ -44,15 +43,9 @@ void Gate::set_io(const vector<Wire*>& _inputs, Wire * const _output) {
 	output = _output;
 }
 
-bool Gate::are_inputs_valid() {
-	return all_of(inputs.begin(), inputs.end(), [](Wire *wire) { return wire->changed; });
+Nand::Nand() {
+	delay = NAND_DELAY;
 }
-
-void Gate::make_output_chagned() {
-	output->changed = true;
-}
-
-Nand::Nand() {}
 
 Event Nand::evaluate() {
 	auto inputs_char = wires_to_chars(inputs);
@@ -69,7 +62,9 @@ Event Nand::evaluate() {
 	return {{output, value}, delay};
 }
 
-And::And() {}
+And::And() {
+	delay = AND_DELAY;
+}
 
 Event And::evaluate() {
 	auto inputs_char = wires_to_chars(inputs);
@@ -86,7 +81,9 @@ Event And::evaluate() {
 	return {{output, value}, delay};
 }
 
-Nor::Nor() {}
+Nor::Nor() {
+	delay = NOR_DELAY;
+}
 
 Event Nor::evaluate() {
 	auto inputs_char = wires_to_chars(inputs);
@@ -103,7 +100,9 @@ Event Nor::evaluate() {
 	return {{output, value}, delay};
 }
 
-Or::Or() {}
+Or::Or() {
+	delay = OR_DELAY;
+}
 
 Event Or::evaluate() {
 	auto inputs_char = wires_to_chars(inputs);
@@ -120,7 +119,9 @@ Event Or::evaluate() {
 	return {{output, value}, delay};
 }
 
-Xnor::Xnor() {}
+Xnor::Xnor() {
+	delay = XNOR_DELAY;
+}
 
 Event Xnor::evaluate() {
 	int ones_cnt = 0;
@@ -143,7 +144,9 @@ Event Xnor::evaluate() {
 	return {{output, value}, delay};
 }
 
-Xor::Xor() {}
+Xor::Xor() {
+	delay = XOR_DELAY;
+}
 
 Event Xor::evaluate() {
 	int ones_cnt = 0;
@@ -166,7 +169,9 @@ Event Xor::evaluate() {
 	return {{output, value}, delay};
 }
 
-Not::Not() {}
+Not::Not() {
+	delay = NOT_DELAY;
+}
 
 Event Not::evaluate() {
 	char value;

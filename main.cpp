@@ -1,18 +1,7 @@
 // TODO
-// implement EventEngine member functions
-// implement a way to get gate delays from input
-// implement vcd dump functionality
-//
 // do the netlist representation
 #include "main.hpp"
 #include "primitives.hpp"
-
-//TODO
-// in a wire you've gotta hold a reference to the next gate (the gate whose inputs contains this
-// wire), because whenver a wire is changed, all next gates of it should be reevaluated and 
-// their output shold be scheduled to take effect at a later time, those updates will also 
-// cause other evaluations until we reach the primary outputs of the circuit (assuming a pure
-// combinational architecture)
 
 using namespace std;
 
@@ -32,7 +21,6 @@ int main(int argc, char **argv) {
 	}
 
 	string vfile_str = get_file_string(vfilepath);
-	// vector<vector<char>> input_vectors = get_input_vectors(ifilepath);
 
 	vector<vector<string>> statements;
 	for (auto it = vfile_str.begin(); it != vfile_str.end(); ) {
@@ -42,29 +30,74 @@ int main(int argc, char **argv) {
 		}
 	}
 
+	string module_name = init_module_name(statements);
 	auto [wires, inputs, outputs] = init_wires(statements);
 	vector<Gate*> gates = init_gates(statements, wires);
 	auto input_feed = get_input_feed(input_feed_filepath, inputs);
 
-	VCDTracer tracer(ofilepath);
+	VCDTracer tracer(ofilepath, module_name);
 	EventEngine engine(input_feed, &tracer);
 
-	// engine.schedule_activity();
-	// engine.run(5000);
+	engine.schedule_activity(input_feed);
+	engine.run(5000);
 
-	// randomize_gates(gates);
+	vector<Wire*> ports(inputs);
+	ports.reserve(inputs.size() + outputs.size());
+	ports.insert(ports.end(), outputs.begin(), outputs.end());
+	
+	tracer.dump(ports);
+
 	cleanup(wires, gates);
 	return 0;
 }
 
-VCDTracer::VCDTracer(const string& _dumpfilepath) : dumpfilepath(_dumpfilepath) {}
+VCDTracer::VCDTracer(const string& _dumpfilepath, const string& _module_name) : 
+	dumpfilepath(_dumpfilepath), module_name(_module_name) {}
 
 void VCDTracer::add_change(const Event& event) {
 	change_vector.push_back(event);
 }
 
-void VCDTracer::dump() const {
-	//TODO
+void VCDTracer::dump(const vector<Wire*>& wires) const {
+	unordered_map<Wire*, string> wire_identifiers;
+
+	string vcd_id {VCD_CHAR_ID_FIRST};
+	for (auto wire : wires) {
+		wire_identifiers[wire] = vcd_id;
+		vcd_id = next_vcd_id(vcd_id);
+	}
+
+	ofstream f(dumpfilepath);
+	f << "$timescale 1 ns $end" << '\n';
+	f << "$scope module " << module_name << " $end\n";
+	for (auto wire : wires) {
+		f << "$var wire 1 " << wire_identifiers[wire] << ' ' << wire->get_name() << " $end\n";
+	}
+	f << "$uscope $end\n";
+	f << "$enddefinitions $end\n";
+	f << "$dumpvars\n";
+	for (auto wire : wires) {
+		f << 'x' << wire_identifiers[wire] << '\n';
+	}
+	f << "$end\n";
+
+	int prev_time = -1;
+	for (const auto& change : change_vector) {
+		auto wire = change.wire_assignment.wire;
+		if (wire_identifiers.find(wire) != wire_identifiers.end()) {
+			const int time = change.time;
+			if (time != prev_time) {
+				f << '#' << change.time << '\n';
+				prev_time = time;
+			}
+			f << change.wire_assignment.value;
+			// f << change.wire_assignment.wire->get_name() << '\n';
+			f << wire_identifiers[wire] << '\n';
+
+		}
+	}
+	f << "$dumpoff\n";
+	f.close();
 }
 
 
@@ -85,11 +118,12 @@ void EventEngine::schedule_activity(const Event& event, int added_time) {
 	time_array[ind].push_back(event.wire_assignment);
 }
 
-void EventEngine::schedule_activity(const vector<Event>& events) {
+void EventEngine::schedule_activity(const list<Event>& events) {
 	for (const auto& event : events) {
 		schedule_activity(event);
 	}
 }
+
 
 void EventEngine::run(int runtime_duration) {
 	for (int cur_time = 0; cur_time < runtime_duration; cur_time++) {
@@ -101,7 +135,6 @@ void EventEngine::run(int runtime_duration) {
 		for (const auto& wire_assignment : time_array[cur_index]) {
 			const auto [wire, value] = wire_assignment;
 			wire->value = value;
-			//TODO this is not yet done
 			tracer->add_change({wire_assignment, cur_time});
 			for (auto gate : wire->output_gates) {
 				auto new_event = gate->evaluate();
@@ -158,10 +191,19 @@ void set_inputs(const vector<Wire*>& inputs, const vector<char>& input_vector) {
 	assert(inputs.size() == input_vector.size());
 	for (int i = 0; i < inputs.size(); i++) {
 		inputs[i]->value = input_vector[i];
-		inputs[i]->changed = true;
+		// inputs[i]->changed = true;
 	}
 }
 
+string init_module_name(const vector<vector<string>>& statements) {
+	for (const auto& statement : statements) {
+		if (!statement.empty() && statement[0] == "module") {
+			assert(statement.size() >= 2);
+			return statement[1];
+		}
+	}
+	return "";
+}
 
 tuple<vector<Wire*>, vector<Wire*>, vector<Wire*>>
 init_wires(const vector<vector<string>>& statements) {
@@ -343,4 +385,28 @@ vector<string> extract_statement(const string &str, string::iterator &it, const 
 		words.push_back(word);
 	}
 	return words;
+}
+
+string next_vcd_id(string id) {
+	assert(!id.empty());
+	if (id.back() == VCD_CHAR_ID_LAST) {
+		id.back() = VCD_CHAR_ID_FIRST;
+		int i;
+		for (i = id.size() - 2; i >= 0; i--) {
+			if (id[i] != VCD_CHAR_ID_LAST) {
+				id[i]++;
+				break;
+			}
+			else {
+				id[i] = VCD_CHAR_ID_FIRST;
+			}
+		}
+		if (i == -1) {
+			id = VCD_CHAR_ID_FIRST + id;
+		}
+	}
+	else {
+		id.back()++;
+	}
+	return id;
 }
