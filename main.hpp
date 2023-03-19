@@ -18,8 +18,7 @@
 #include "primitives.hpp"
 
 
-const int ENGINE_BUFF_SIZE = 250;
-// const int ENGINE_BUFF_SIZE = 1000;
+const int ENGINE_BUFF_SIZE = 150;
 const char VCD_CHAR_ID_FIRST = 33;
 const char VCD_CHAR_ID_LAST = 126;
 
@@ -29,7 +28,7 @@ public:
 	void add_change(const Event&);
 	void dump(const std::vector<Wire*>&) const;
 private:
-	std::set<std::string> nodes;
+	// std::set<std::string> nodes;
 	std::vector<Event> change_vector;
 	std::string dumpfilepath;
 	std::string module_name;

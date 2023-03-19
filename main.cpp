@@ -38,8 +38,7 @@ int main(int argc, char **argv) {
 	VCDTracer tracer(ofilepath, module_name);
 	EventEngine engine(input_feed, &tracer);
 
-	engine.schedule_activity(input_feed);
-	engine.run(5000);
+	engine.run(1000);
 
 	vector<Wire*> ports(inputs);
 	ports.reserve(inputs.size() + outputs.size());
@@ -125,19 +124,23 @@ void EventEngine::schedule_activity(const list<Event>& events) {
 
 void EventEngine::run(int runtime_duration) {
 	for (int cur_time = 0; cur_time < runtime_duration; cur_time++) {
-		int cur_index = cur_time % time_array.size();
-		if (!input_feed.empty() && input_feed.front().time == cur_time) {
+		const int cur_index = cur_time % time_array.size();
+		while (!input_feed.empty() && input_feed.front().time == cur_time) {
 			time_array[cur_index].push_front(input_feed.front().wire_assignment);
 			input_feed.pop_front();
 		}
+		set<Gate*> gates_to_evaluate;
 		for (const auto& wire_assignment : time_array[cur_index]) {
 			const auto [wire, value] = wire_assignment;
 			wire->value = value;
 			tracer->add_change({wire_assignment, cur_time});
 			for (auto gate : wire->output_gates) {
-				auto new_event = gate->evaluate();
-				schedule_activity(new_event, cur_time);
+				gates_to_evaluate.insert(gate);
 			}
+		}
+		for (auto gate : gates_to_evaluate) {
+			auto new_event = gate->evaluate();
+			schedule_activity(new_event, cur_time);
 		}
 		time_array[cur_index].clear();
 	}
@@ -325,27 +328,6 @@ vector<vector<char>> get_input_vectors(const string& filepath) {
 }
 
 list<Event> get_input_feed(const string& filepath, const vector<Wire*>& inputs) {
-	// unordered_map<string, Wire*> inputs_map;
-	// for (auto input : inputs) {
-	// 	inputs_map[input->get_name()] = input;
-	// }
-	//
-	// ifstream file(filepath);
-	// list<Event> input_feed;
-	// // input format: <input_name>, <input_value>, <input_scheduled_time>
-	// // it is expected that scheduled_time of input_feed elements are increasing
-	// string word;
-	// while (file >> word) {
-	// 	Event event;
-	// 	event.wire_assignment.wire = inputs_map.at(word);
-	// 	file >> word;
-	// 	assert(word.size() == 1);
-	// 	event.wire_assignment.value = word[0];
-	// 	file >> word;
-	// 	event.time = stoi(word);
-	// 	input_feed.push_back(event);
-	// }
-	// return input_feed;
 	ifstream file(filepath);
 	list<Event> input_feed;
 	string word;
@@ -354,8 +336,11 @@ list<Event> get_input_feed(const string& filepath, const vector<Wire*>& inputs) 
 		file >> word;
 		assert(word.size() == inputs.size());
 		for (int i = 0; i < word.size(); i++) {
-			char value = word[i];
-			input_feed.push_back({{inputs[i], value}, time});
+			Event e;
+			e.time = time;
+			e.wire_assignment.wire = inputs[i];
+			e.wire_assignment.value = word[i];
+			input_feed.push_back(e);
 		}
 	}
 	file.close();
