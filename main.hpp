@@ -19,6 +19,7 @@
 
 
 const int ENGINE_BUFF_SIZE = 250;
+// const int ENGINE_BUFF_SIZE = 1000;
 const char VCD_CHAR_ID_FIRST = 33;
 const char VCD_CHAR_ID_LAST = 126;
 

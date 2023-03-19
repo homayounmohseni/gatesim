@@ -91,7 +91,6 @@ void VCDTracer::dump(const vector<Wire*>& wires) const {
 				prev_time = time;
 			}
 			f << change.wire_assignment.value;
-			// f << change.wire_assignment.wire->get_name() << '\n';
 			f << wire_identifiers[wire] << '\n';
 
 		}
@@ -101,11 +100,10 @@ void VCDTracer::dump(const vector<Wire*>& wires) const {
 }
 
 
-EventEngine::EventEngine(const list<Event>& _input_feed,
-		VCDTracer *_tracer) : input_feed(_input_feed) {
+EventEngine::EventEngine(const list<Event>& _input_feed, VCDTracer *_tracer) :
+	input_feed(_input_feed) {
 	tracer = _tracer;
 }
-
 
 
 void EventEngine::schedule_activity(const Event& event) {
@@ -327,26 +325,40 @@ vector<vector<char>> get_input_vectors(const string& filepath) {
 }
 
 list<Event> get_input_feed(const string& filepath, const vector<Wire*>& inputs) {
-	unordered_map<string, Wire*> inputs_map;
-	for (auto input : inputs) {
-		inputs_map[input->get_name()] = input;
-	}
-
+	// unordered_map<string, Wire*> inputs_map;
+	// for (auto input : inputs) {
+	// 	inputs_map[input->get_name()] = input;
+	// }
+	//
+	// ifstream file(filepath);
+	// list<Event> input_feed;
+	// // input format: <input_name>, <input_value>, <input_scheduled_time>
+	// // it is expected that scheduled_time of input_feed elements are increasing
+	// string word;
+	// while (file >> word) {
+	// 	Event event;
+	// 	event.wire_assignment.wire = inputs_map.at(word);
+	// 	file >> word;
+	// 	assert(word.size() == 1);
+	// 	event.wire_assignment.value = word[0];
+	// 	file >> word;
+	// 	event.time = stoi(word);
+	// 	input_feed.push_back(event);
+	// }
+	// return input_feed;
 	ifstream file(filepath);
 	list<Event> input_feed;
-	// input format: <input_name>, <input_value>, <input_scheduled_time>
-	// it is expected that scheduled_time of input_feed elements are increasing
 	string word;
 	while (file >> word) {
-		Event event;
-		event.wire_assignment.wire = inputs_map.at(word);
+		int time = stoi(word);
 		file >> word;
-		assert(word.size() == 1);
-		event.wire_assignment.value = word[0];
-		file >> word;
-		event.time = stoi(word);
-		input_feed.push_back(event);
+		assert(word.size() == inputs.size());
+		for (int i = 0; i < word.size(); i++) {
+			char value = word[i];
+			input_feed.push_back({{inputs[i], value}, time});
+		}
 	}
+	file.close();
 	return input_feed;
 }
 
