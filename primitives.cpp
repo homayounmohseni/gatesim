@@ -29,6 +29,14 @@ string Wire::get_name() const {
 	return name;
 }
 
+Gate::Gate(int _delay) {
+	delay = _delay;
+}
+
+void Gate::set_io(const vector<Wire*>& _inputs, Wire * const _output) {
+	inputs = _inputs;
+	output = _output;
+}
 
 void Gate::set_name(const string& _name) {
 	name = _name;
@@ -38,14 +46,15 @@ string Gate::get_name() const {
 	return name;
 }
 
-void Gate::set_io(const vector<Wire*>& _inputs, Wire * const _output) {
-	inputs = _inputs;
-	output = _output;
+vector<Wire*> Gate::get_inputs() const {
+	return inputs;
 }
 
-Nand::Nand() {
-	delay = NAND_DELAY;
+Wire* Gate::get_output() const {
+	return output;
 }
+
+Nand::Nand(int _delay) : Gate(_delay) {}
 
 Event Nand::evaluate() {
 	auto inputs_char = wires_to_chars(inputs);
@@ -62,9 +71,7 @@ Event Nand::evaluate() {
 	return {{output, value}, delay};
 }
 
-And::And() {
-	delay = AND_DELAY;
-}
+And::And(int _delay) : Gate(_delay) {}
 
 Event And::evaluate() {
 	auto inputs_char = wires_to_chars(inputs);
@@ -81,9 +88,7 @@ Event And::evaluate() {
 	return {{output, value}, delay};
 }
 
-Nor::Nor() {
-	delay = NOR_DELAY;
-}
+Nor::Nor(int _delay) : Gate(_delay) {}
 
 Event Nor::evaluate() {
 	auto inputs_char = wires_to_chars(inputs);
@@ -100,9 +105,7 @@ Event Nor::evaluate() {
 	return {{output, value}, delay};
 }
 
-Or::Or() {
-	delay = OR_DELAY;
-}
+Or::Or(int _delay) : Gate(_delay) {}
 
 Event Or::evaluate() {
 	auto inputs_char = wires_to_chars(inputs);
@@ -119,9 +122,7 @@ Event Or::evaluate() {
 	return {{output, value}, delay};
 }
 
-Xnor::Xnor() {
-	delay = XNOR_DELAY;
-}
+Xnor::Xnor(int _delay) : Gate(_delay) {}
 
 Event Xnor::evaluate() {
 	int ones_cnt = 0;
@@ -144,9 +145,7 @@ Event Xnor::evaluate() {
 	return {{output, value}, delay};
 }
 
-Xor::Xor() {
-	delay = XOR_DELAY;
-}
+Xor::Xor(int _delay) : Gate(_delay) {}
 
 Event Xor::evaluate() {
 	int ones_cnt = 0;
@@ -169,9 +168,7 @@ Event Xor::evaluate() {
 	return {{output, value}, delay};
 }
 
-Not::Not() {
-	delay = NOT_DELAY;
-}
+Not::Not(int _delay) : Gate(_delay) {}
 
 Event Not::evaluate() {
 	char value;

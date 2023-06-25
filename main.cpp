@@ -1,26 +1,24 @@
-// TODO
-// do the netlist representation
 #include "main.hpp"
 #include "primitives.hpp"
 
 using namespace std;
 
 int main(int argc, char **argv) {
-	string vfilepath, ifilepath, ofilepath, input_feed_filepath;
+	string verilog_filepath, input_feed_filepath, output_netlist_filepath, output_wave_filepath;
 	if (argc < 5) {
-		vfilepath = "c432.v";
-		ifilepath = "inputs.txt";
-		ofilepath = "wave.vcd";
+		verilog_filepath = "c432.v";
 		input_feed_filepath = "inputfeed.txt";
+		output_netlist_filepath = "netlist.txt";
+		output_wave_filepath = "wave.vcd";
 	}
 	else {
-		vfilepath = string(argv[1]);
-		ifilepath = string(argv[2]);
-		ofilepath = string(argv[3]);
-		input_feed_filepath = string(argv[4]);
+		verilog_filepath = string(argv[1]);
+		input_feed_filepath = string(argv[2]);
+		output_netlist_filepath = string(argv[3]);
+		output_wave_filepath = string(argv[4]);
 	}
 
-	string vfile_str = get_file_string(vfilepath);
+	string vfile_str = get_file_string(verilog_filepath);
 
 	vector<vector<string>> statements;
 	for (auto it = vfile_str.begin(); it != vfile_str.end(); ) {
@@ -31,20 +29,19 @@ int main(int argc, char **argv) {
 	}
 
 	string module_name = init_module_name(statements);
-	auto [wires, inputs, outputs] = init_wires(statements);
+	auto [wires, inputs, outputs, ports] = init_wires(statements);
 	vector<Gate*> gates = init_gates(statements, wires);
 	auto input_feed = get_input_feed(input_feed_filepath, inputs);
 
-	VCDTracer tracer(ofilepath, module_name);
+	dump_netlist(output_netlist_filepath, wires, inputs, outputs, gates);
+
+	VCDTracer tracer(output_wave_filepath, module_name);
 	EventEngine engine(input_feed, &tracer);
 
-	engine.run(1000);
+	const int runtime_duration = 1000;
+	engine.run(runtime_duration);
 
-	vector<Wire*> ports(inputs);
-	ports.reserve(inputs.size() + outputs.size());
-	ports.insert(ports.end(), outputs.begin(), outputs.end());
-	
-	tracer.dump(ports);
+	tracer.dump(ports, runtime_duration);
 
 	cleanup(wires, gates);
 	return 0;
@@ -57,9 +54,8 @@ void VCDTracer::add_change(const Event& event) {
 	change_vector.push_back(event);
 }
 
-void VCDTracer::dump(const vector<Wire*>& wires) const {
+void VCDTracer::dump(const vector<Wire*>& wires, const int runtime_duration) const {
 	unordered_map<Wire*, string> wire_identifiers;
-
 	string vcd_id {VCD_CHAR_ID_FIRST};
 	for (auto wire : wires) {
 		wire_identifiers[wire] = vcd_id;
@@ -85,15 +81,18 @@ void VCDTracer::dump(const vector<Wire*>& wires) const {
 		auto wire = change.wire_assignment.wire;
 		if (wire_identifiers.find(wire) != wire_identifiers.end()) {
 			const int time = change.time;
+			if (time > runtime_duration) {
+				break;
+			}
 			if (time != prev_time) {
 				f << '#' << change.time << '\n';
 				prev_time = time;
 			}
 			f << change.wire_assignment.value;
 			f << wire_identifiers[wire] << '\n';
-
 		}
 	}
+	f << '#' << runtime_duration << '\n';
 	f << "$dumpoff\n";
 	f.close();
 }
@@ -122,7 +121,7 @@ void EventEngine::schedule_activity(const list<Event>& events) {
 }
 
 
-void EventEngine::run(int runtime_duration) {
+void EventEngine::run(const int runtime_duration) {
 	for (int cur_time = 0; cur_time < runtime_duration; cur_time++) {
 		const int cur_index = cur_time % time_array.size();
 		while (!input_feed.empty() && input_feed.front().time == cur_time) {
@@ -161,6 +160,36 @@ void randomize_gates(vector<Gate*>& gates) {
 }
 
 
+void dump_wires(ofstream& f, const vector<Wire*>& wires) {
+	for (auto wire : wires) {
+		f << "Name: ";
+		f << wire->get_name();
+		f << '\n';
+		f << "Output Gates:\n";
+		for (auto gate : wire->output_gates) {
+			f << gate->get_name() << " ";
+		}
+		f << "\n\n";
+	}
+}
+
+void dump_gates(ofstream& f, const vector<Gate*>& gates) {
+	for (auto gate : gates) {
+		f << "Gate Name: ";
+		f << gate->get_name();
+		f << '\n';
+		auto inputs = gate->get_inputs();
+		f << "Inputs:\n";
+		for (auto input : inputs) {
+			f << input->get_name() << " ";
+		}
+		f << '\n';
+		f << "Output: ";
+		f << gate->get_output()->get_name();
+		f << "\n\n";
+	}
+}
+
 void print_wire_names(const vector<Wire*>& wires) {
 	cout << "[";
 	for (auto it = wires.begin(); it != wires.end(); it++) {
@@ -188,14 +217,6 @@ void print_gates(const vector<Gate*>& gates) {
 	cout << '\n';
 }
 
-void set_inputs(const vector<Wire*>& inputs, const vector<char>& input_vector) {
-	assert(inputs.size() == input_vector.size());
-	for (int i = 0; i < inputs.size(); i++) {
-		inputs[i]->value = input_vector[i];
-		// inputs[i]->changed = true;
-	}
-}
-
 string init_module_name(const vector<vector<string>>& statements) {
 	for (const auto& statement : statements) {
 		if (!statement.empty() && statement[0] == "module") {
@@ -206,9 +227,9 @@ string init_module_name(const vector<vector<string>>& statements) {
 	return "";
 }
 
-tuple<vector<Wire*>, vector<Wire*>, vector<Wire*>>
+tuple<vector<Wire*>, vector<Wire*>, vector<Wire*>, vector<Wire*>>
 init_wires(const vector<vector<string>>& statements) {
-	vector<Wire*> wires, inputs, outputs;
+	vector<Wire*> wires, inputs, outputs, ports;
 	unordered_map<string, Wire*> wires_map;
 	for (const auto& statement : statements) {
 		if (statement.size() == 0) {
@@ -220,12 +241,14 @@ init_wires(const vector<vector<string>>& statements) {
 		if (statement[0] == "output") {
 			add_wires_to_vector(statement, outputs, wires_map);
 		}
+		if (statement[0] == "input" || statement[0] == "output") {
+			add_wires_to_vector(statement, ports, wires_map);
+		}
 		if (statement[0] == "input" || statement[0] == "output" || statement[0] == "wire") {
 			add_wires_to_vector(statement, wires, wires_map);
 		}
 	}
-
-	return {wires, inputs, outputs};
+	return {wires, inputs, outputs, ports};
 }
 
 void add_wires_to_vector(const vector<string>& words, vector<Wire*>& v, unordered_map<string, Wire*>& m) {
@@ -261,25 +284,25 @@ vector<Gate*> init_gates(const vector<vector<string>>& statements, const vector<
 		}
 		Gate *gate;
 		if (statement[0] == "nand") {
-			gate = new Nand;
+			gate = new Nand(NAND_DELAY);
 		}
 		else if (statement[0] == "and") {
-			gate = new And;
+			gate = new And(AND_DELAY);
 		}
 		else if (statement[0] == "nor") {
-			gate = new Nor;
+			gate = new Nor(NOR_DELAY);
 		}
 		else if (statement[0] == "or") {
-			gate = new Or;
+			gate = new Or(OR_DELAY);
 		}
 		else if (statement[0] == "xor") {
-			gate = new Xor;
+			gate = new Xor(XOR_DELAY);
 		}
 		else if (statement[0] == "xnor") {
-			gate = new Xnor;
+			gate = new Xnor(XNOR_DELAY);
 		}
 		else if (statement[0] == "not") {
-			gate = new Not;
+			gate = new Not(NOT_DELAY);
 		}
 		else {
 			continue;
@@ -315,16 +338,6 @@ string get_file_string(const string& filepath) {
 			(istreambuf_iterator<char>()));
 	file.close();
 	return file_str;
-}
-
-vector<vector<char>> get_input_vectors(const string& filepath) {
-	ifstream file(filepath);
-	vector<vector<char>> input_vectors;
-	string line;
-	while (getline(file, line)) {
-		input_vectors.push_back(vector<char>(line.begin(), line.end()));
-	}
-	return input_vectors;
 }
 
 list<Event> get_input_feed(const string& filepath, const vector<Wire*>& inputs) {
@@ -406,4 +419,31 @@ string next_vcd_id(string id) {
 		id.back()++;
 	}
 	return id;
+}
+
+void dump_netlist(const string& filepath, const vector<Wire*>& wires, const vector<Wire*>& inputs, 
+		const vector<Wire*>& outputs, const vector<Gate*>& gates) {
+	ofstream f(filepath);
+	f << "===================================";
+	f << "ALL WIRES";
+	f << "===================================";
+	f << '\n';
+	dump_wires(f, wires);
+	f << "===================================";
+	f << "INPUTS";
+	f << "===================================";
+	f << '\n';
+	dump_wires(f, inputs);
+	f << "===================================";
+	f << "Outputs";
+	f << "===================================";
+	f << '\n';
+	dump_wires(f, outputs);
+	f << "===================================";
+	f << "Gates";
+	f << "===================================";
+	f << '\n';
+	dump_gates(f, gates);
+
+	f.close();
 }

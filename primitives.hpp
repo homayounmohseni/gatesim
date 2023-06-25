@@ -4,13 +4,6 @@
 #include <string>
 #include <vector>
 
-const int NOT_DELAY = 2;
-const int NAND_DELAY = 5;
-const int AND_DELAY = 3;
-const int NOR_DELAY = 4;
-const int OR_DELAY = 4;
-const int XOR_DELAY = 6;
-const int XNOR_DELAY = 6;
 
 class Gate;
 class Wire;
@@ -37,10 +30,13 @@ private:
 
 class Gate {
 public:
+	Gate(int);
 	void set_io(const std::vector<Wire*>&, Wire * const);
 	void set_name(const std::string&);
 	std::string get_name() const;
 	virtual Event evaluate() = 0;
+	std::vector<Wire*> get_inputs() const;
+	Wire* get_output() const ;
 	virtual ~Gate() = default;
 protected:
 	std::string name;
@@ -51,43 +47,43 @@ protected:
 
 class Not : public Gate {
 public:
-	Not();
+	Not(int);
 	virtual Event evaluate();
 };
 
 class Nand : public Gate {
 public:
-	Nand();
+	Nand(int);
 	virtual Event evaluate();
 };
 
 class And : public Gate {
 public:
-	And();
+	And(int);
 	virtual Event evaluate();
 };
 
 class Nor : public Gate {
 public:
-	Nor();
+	Nor(int);
 	virtual Event evaluate();
 };
 
 class Or : public Gate {
 public:
-	Or();
+	Or(int);
 	virtual Event evaluate();
 };
 
 class Xor : public Gate {
 public:
-	Xor();
+	Xor(int);
 	virtual Event evaluate();
 };
 
 class Xnor : public Gate {
 public:
-	Xnor();
+	Xnor(int);
 	virtual Event evaluate();
 };
 
